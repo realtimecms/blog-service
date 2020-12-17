@@ -8,6 +8,8 @@ const definition = app.createServiceDefinition({
   validators
 })
 
+const config = require('../config/blog.js')(definition)
+
 const User = definition.foreignModel('users', 'User')
 const Category = definition.foreignModel('categories', 'Category')
 const Picture = definition.foreignModel('pictures', 'Picture')
@@ -18,54 +20,7 @@ const postFields = {
     type: Date,
     validation: ['nonEmpty']
   },
-  title: {
-    type: String,
-    validation: ['nonEmpty']
-  },
-  content: {
-    type: String,
-    validation: ['nonEmpty']
-  },
-  picture: {
-    type: Picture,
-    validation: ['nonEmpty']
-  },
-  category: {
-    type: Array,
-    of: {
-      type: Category,
-      validation: ['nonEmpty']
-    },
-    defaultValue: [],
-    validation: ['nonEmpty', {name: 'minLength', length: 1}, 'elementsNonEmpty'],
-    editor: ['categorySelect'],
-    parentCategory: 'post',
-    search: {
-      type: 'keyword'
-    }
-  },
-  lists: {
-    type: Array,
-    of: {
-      type: String,
-      validation: ['nonEmpty']
-    },
-    defaultValue: [],
-    editor: ['multiCheckbox'],
-    options: ['top', 'news', 'big-news']
-  },
-  tags: {
-    type: Array,
-    of: {
-      type: Tag,
-      validation: ['nonEmpty'],
-      editor: 'relationSingleSelect'
-    },
-    search: {
-      type: 'keyword'
-    }
-  },
-  lang: {type: String, validation: ['nonEmpty']}
+  ...(config.fields)
 }
 
 const Post = definition.model({
@@ -84,96 +39,102 @@ const Post = definition.model({
     postsByDate: {
       property: "date",
     },
-    categoryPostsWithDate: {
-      function: async (input, output, { table }) => {
-        await input.table("blog_Post").onChange((obj, oldObj) => {
-          if(obj && oldObj) {
-            let pointers = new Set(obj.category
-                && obj.category.map(p => JSON.stringify(p)+':'+JSON.stringify(obj.date)))
-            let oldPointers = new Set(oldObj.category
-                && oldObj.category.map(p => JSON.stringify(p)+':'+JSON.stringify(oldObj.date)))
-            output.debug("CATEGORY POINTERS", pointers)
-            output.debug("OLD CATEGORY POINTERS", oldPointers)
-            for(let pointer of pointers) {
-              if(!oldPointers.has(pointer)) {
-                output.debug("ADD NEW POINTER", pointers)
-                output.change(
-                    { id: pointer+'_'+obj.id, to: obj.id }, null)
-              } else {
-                output.debug("IGNORE NEW POINTER", pointers)
+    ...(postFields.category ? {
+      categoryPostsWithDate: {
+        function: async (input, output, { table }) => {
+          await input.table("blog_Post").onChange((obj, oldObj) => {
+            if(obj && oldObj) {
+              let pointers = new Set(obj.category
+                  && obj.category.map(p => JSON.stringify(p)+':'+JSON.stringify(obj.date)))
+              let oldPointers = new Set(oldObj.category
+                  && oldObj.category.map(p => JSON.stringify(p)+':'+JSON.stringify(oldObj.date)))
+              output.debug("CATEGORY POINTERS", pointers)
+              output.debug("OLD CATEGORY POINTERS", oldPointers)
+              for(let pointer of pointers) {
+                if(!oldPointers.has(pointer)) {
+                  output.debug("ADD NEW POINTER", pointers)
+                  output.change(
+                      { id: pointer+'_'+obj.id, to: obj.id }, null)
+                } else {
+                  output.debug("IGNORE NEW POINTER", pointers)
+                }
               }
+              for(let pointer of oldPointers) {
+                if(!pointers.has(pointer)) {
+                  output.change(
+                      null, { id: pointer+'_'+obj.id, to: obj.id })
+                }
+              }
+            } else if(obj) {
+              obj.category && obj.category.forEach(p => output.change(
+                  { id: JSON.stringify(p)+':'+JSON.stringify(obj.date)+'_'+obj.id, to: obj.id }, null))
+            } else if(oldObj) {
+              oldObj.category && oldObj.category.forEach(p => output.change(
+                  null, { id: JSON.stringify(p)+':'+JSON.stringify(oldObj.date)+'_'+oldObj.id, to: oldObj.id }))
             }
-            for(let pointer of oldPointers) {
-              if(!pointers.has(pointer)) {
-                output.change(
+          })
+        }
+      },
+    } : {}),
+    ...(postFields.tags ? {
+      tagPostsWithDate: {
+        function: async (input, output, { table }) => {
+          await input.table("blog_Post").onChange((obj, oldObj) => {
+            if(obj && oldObj) {
+              let pointers = new Set(obj.tags
+                  && obj.tags.map(p => JSON.stringify(p)+':'+JSON.stringify(obj.date)))
+              let oldPointers = new Set(oldObj.tags &&
+                  oldObj.tags.map(p => JSON.stringify(p)+':'+JSON.stringify(oldObj.date)))
+              for(let pointer of pointers) {
+                if(!oldPointers.has(pointer)) output.change(
+                    { id: pointer+'_'+obj.id, to: obj.id }, null)
+              }
+              for(let pointer of oldPointers) {
+                if(!pointers.has(pointer)) output.change(
                     null, { id: pointer+'_'+obj.id, to: obj.id })
               }
+            } else if(obj) {
+              obj.tags && obj.tags.forEach(p => output.change(
+                  { id: JSON.stringify(p)+':'+JSON.stringify(obj.date)+'_'+obj.id, to: obj.id }, null))
+            } else if(oldObj) {
+              oldObj.tags && oldObj.tags.forEach(p => output.change(
+                  null, { id: JSON.stringify(p)+':'+JSON.stringify(oldObj.date)+'_'+oldObj.id, to: oldObj.id }))
             }
-          } else if(obj) {
-            obj.category && obj.category.forEach(p => output.change(
-                { id: JSON.stringify(p)+':'+JSON.stringify(obj.date)+'_'+obj.id, to: obj.id }, null))
-          } else if(oldObj) {
-            oldObj.category && oldObj.category.forEach(p => output.change(
-                null, { id: JSON.stringify(p)+':'+JSON.stringify(oldObj.date)+'_'+oldObj.id, to: oldObj.id }))
-          }
-        })
-      }
-    },
-    tagPostsWithDate: {
-      function: async (input, output, { table }) => {
-        await input.table("blog_Post").onChange((obj, oldObj) => {
-          if(obj && oldObj) {
-            let pointers = new Set(obj.tags
-                && obj.tags.map(p => JSON.stringify(p)+':'+JSON.stringify(obj.date)))
-            let oldPointers = new Set(oldObj.tags &&
-                oldObj.tags.map(p => JSON.stringify(p)+':'+JSON.stringify(oldObj.date)))
-            for(let pointer of pointers) {
-              if(!oldPointers.has(pointer)) output.change(
-                  { id: pointer+'_'+obj.id, to: obj.id }, null)
-            }
-            for(let pointer of oldPointers) {
-              if(!pointers.has(pointer)) output.change(
-                  null, { id: pointer+'_'+obj.id, to: obj.id })
-            }
-          } else if(obj) {
-            obj.tags && obj.tags.forEach(p => output.change(
-                { id: JSON.stringify(p)+':'+JSON.stringify(obj.date)+'_'+obj.id, to: obj.id }, null))
-          } else if(oldObj) {
-            oldObj.tags && oldObj.tags.forEach(p => output.change(
-                null, { id: JSON.stringify(p)+':'+JSON.stringify(oldObj.date)+'_'+oldObj.id, to: oldObj.id }))
-          }
-        })
-      }
-    },
+          })
+        }
+      },
+    }: {}),
     userPostsWithDate: {
       property: ['author', 'date']
     },
-    listPostsWithDate: {
-      function: async (input, output, { table }) => {
-        await input.table("blog_Post").onChange((obj, oldObj) => {
-          if(obj && oldObj) {
-            let pointers = obj && new Set( obj.lists
-                && obj.lists.map(p => JSON.stringify(p)+':'+JSON.stringify(obj.date)))
-            let oldPointers = oldObj && new Set( oldObj.lists
-                && oldObj.lists.map(p => JSON.stringify(p)+':'+JSON.stringify(oldObj.date)))
-            for(let pointer of pointers) {
-              if(!oldPointers.has(pointer)) output.change(
-                  { id: pointer+'_'+obj.id, to: obj.id }, null)
+    ...(postFields.lists ? {
+      listPostsWithDate: {
+        function: async (input, output, { table }) => {
+          await input.table("blog_Post").onChange((obj, oldObj) => {
+            if(obj && oldObj) {
+              let pointers = obj && new Set(obj.lists
+                  && obj.lists.map(p => JSON.stringify(p) + ':' + JSON.stringify(obj.date)))
+              let oldPointers = oldObj && new Set(oldObj.lists
+                  && oldObj.lists.map(p => JSON.stringify(p) + ':' + JSON.stringify(oldObj.date)))
+              for(let pointer of pointers) {
+                if(!oldPointers.has(pointer)) output.change(
+                    { id: pointer + '_' + obj.id, to: obj.id }, null)
+              }
+              for(let pointer of oldPointers) {
+                if(!pointers.has(pointer)) output.change(
+                    null, { id: pointer + '_' + obj.id, to: obj.id })
+              }
+            } else if(obj) {
+              obj.lists && obj.lists.forEach(p => output.change(
+                  { id: JSON.stringify(p) + ':' + JSON.stringify(obj.date) + '_' + obj.id, to: obj.id }, null))
+            } else if(oldObj) {
+              oldObj.lists && oldObj.lists.forEach(p => output.change(
+                  null, { id: JSON.stringify(p) + ':' + JSON.stringify(oldObj.date) + '_' + oldObj.id, to: oldObj.id }))
             }
-            for(let pointer of oldPointers) {
-              if(!pointers.has(pointer)) output.change(
-                  null, { id: pointer+'_'+obj.id, to: obj.id })
-            }
-          } else if(obj) {
-            obj.lists && obj.lists.forEach(p => output.change(
-                { id: JSON.stringify(p)+':'+JSON.stringify(obj.date)+'_'+obj.id, to: obj.id }, null))
-          } else if(oldObj) {
-            oldObj.lists && oldObj.lists.forEach(p => output.change(
-                null, { id: JSON.stringify(p)+':'+JSON.stringify(oldObj.date)+'_'+oldObj.id, to: oldObj.id }))
-          }
-        })
+          })
+        }
       }
-    }
+    } : {})
   },
   crud: {
     deleteTrigger: true,
@@ -220,8 +181,7 @@ definition.action({
   }
 })
 
-
-definition.view({
+if(postFields.category) definition.view({
   name: "postsByCategory",
   properties: {
     category: {
@@ -329,7 +289,7 @@ definition.view({
   }
 })
 
-definition.view({
+if(postFields.tags) definition.view({
   name: "postsByTag",
   properties: {
     tag: {
@@ -382,7 +342,7 @@ definition.view({
   }
 })
 
-definition.view({
+if(postFields.lists) definition.view({
   name: "postsByList",
   properties: {
     list: {
