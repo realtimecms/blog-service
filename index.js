@@ -232,7 +232,7 @@ if(postFields.category) definition.view({
     }
     console.log("postsByCategory Input Range", { category, gt, lt, gte, lte, limit, reverse })
     console.log("postsByCategory Computed Range", range)
-    return Post.indexRangePath('categoryPostsWithDate', range)
+    return Post.sortedIndexRangePath('categoryPostsWithDate', range)
   }
 })
 
@@ -285,7 +285,7 @@ definition.view({
       limit,
       reverse
     }
-    return Post.indexRangePath('userPostsWithDate', range)
+    return Post.sortedIndexRangePath('userPostsWithDate', range)
   }
 })
 
@@ -338,7 +338,7 @@ if(postFields.tags) definition.view({
       limit,
       reverse
     }
-    return Post.indexRangePath('tagPostsWithDate', range)
+    return Post.sortedIndexRangePath('tagPostsWithDate', range)
   }
 })
 
