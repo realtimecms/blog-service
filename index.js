@@ -13,6 +13,7 @@ const config = require('../config/blog.js')(definition)
 const User = definition.foreignModel('users', 'User')
 const Category = definition.foreignModel('categories', 'Category')
 const Picture = definition.foreignModel('pictures', 'Picture')
+const Slug = definition.foreignModel('slugs', 'Slug')
 const Tag = definition.foreignModel('tags', 'Tag')
 
 const postFields = {
@@ -151,6 +152,7 @@ definition.action({
   properties: {
     ...postFields
   },
+  waitForEvents: true,
   access: (params, { client }) => {
     return client.roles && client.roles.includes('admin')
   },
@@ -182,7 +184,6 @@ definition.action({
         throw { properties: { slug: 'taken' } }
       }
     }
-
 
     emit({
       type: 'PostCreated',
