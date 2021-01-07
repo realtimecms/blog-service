@@ -185,6 +185,8 @@ definition.action({
       }
     }
 
+    await Post.create({ ...data, id: post })
+
     emit({
       type: 'PostCreated',
       post, data
