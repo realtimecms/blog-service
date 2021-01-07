@@ -20,15 +20,15 @@ const postFields = {
     type: Date,
     validation: ['nonEmpty']
   },
+  slug: {
+    type: String
+  },
   ...(config.fields)
 }
 
 const Post = definition.model({
   name: "Post",
   properties: {
-    slug: {
-      type: String
-    },
     author: {
       type: User,
       validation: ['nonEmpty']
@@ -163,21 +163,167 @@ definition.action({
 
     data.author = client.user
 
-    const slug = await service.triggerService('slugs', {
-      type: "CreateSlug",
-      group: "blog_post",
-      title: params.title,
-      to: post
-    })
+    if(!data.slug) {
+      data.slug = await service.triggerService('slugs', {
+        type: "CreateSlug",
+        group: "blog_post",
+        title: params.title,
+        to: post
+      })
+    } else {
+      try {
+        await service.triggerService('slugs', {
+          type: "TakeSlug",
+          group: "blog_post",
+          path: data.slug,
+          to: post
+        })
+      } catch(e) {
+        throw { properties: { slug: 'taken' } }
+      }
+    }
 
-    data.slug = slug
 
     emit({
       type: 'PostCreated',
       post, data
     })
 
-    return { post, slug }
+    return { post, slug: data.slug }
+  }
+})
+
+definition.action({
+  name: "PostCreate",
+  properties: {
+    ...postFields
+  },
+  access: (params, { client }) => {
+    return client.roles && client.roles.includes('admin')
+  },
+  async execute (params, { client, service }, emit) {
+    const post = app.generateUid()
+    let data = { }
+    for(let key in postFields) {
+      data[key] = params[key]
+    }
+
+    if(!data.slug) {
+      data.slug = await service.triggerService('slugs', {
+        type: "CreateSlug",
+        group: "blog_post",
+        title: params.title,
+        to: post
+      })
+    } else {
+      try {
+        await service.triggerService('slugs', {
+          type: "TakeSlug",
+          group: "blog_post",
+          path: data.slug,
+          to: post
+        })
+      } catch(e) {
+        throw { properties: { slug: 'taken' } }
+      }
+    }
+
+    emit({
+      type: 'PostCreated',
+      post, data
+    })
+
+    return pos
+  }
+})
+
+
+definition.action({
+  name: "PostUpdate",
+  properties: {
+    post: {
+      type: String
+    },
+    ...postFields
+  },
+  access: (params, { client }) => {
+    return client.roles && client.roles.includes('admin')
+  },
+  async execute (params, { client, service }, emit) {
+    let data = { }
+    for(let key in postFields) {
+      data[key] = params[key]
+    }
+
+    console.log("UPDATE POST", params)
+
+    const post = params.post
+
+    let current = await Post.get(post)
+
+    if(current.slug != data.slug) {
+      if (!data.slug) {
+        data.slug = await service.triggerService('slugs', {
+          type: "CreateSlug",
+          group: "blog_post",
+          title: params.name,
+          to: post
+        })
+      } else {
+        try {
+          await service.triggerService('slugs', {
+            type: "TakeSlug",
+            group: "blog_post",
+            path: data.slug,
+            to: post
+          })
+        } catch (e) {
+          throw { properties: { slug: 'taken' } }
+        }
+      }
+      await service.triggerService('slugs', {
+        type: "ReleaseSlug",
+        group: "blog_post",
+        path: current.slug,
+        to: post
+      })
+    }
+
+    emit({
+      type: 'PostUpdated',
+      post, data
+    })
+
+    return post
+  }
+})
+
+definition.action({
+  name: "PostDelete",
+  properties: {
+    post: {
+      type: String
+    }
+  },
+  access: (params, { client }) => {
+    return client.roles && client.roles.includes('admin')
+  },
+  async execute ({ post }, { client, service }, emit) {
+    let current = await Post.get(post)
+    await service.triggerService('slugs', {
+      type: "ReleaseSlug",
+      group: "post",
+      path: current.slug,
+      to: post
+    })
+    await service.trigger({
+      type: "PostDeleted",
+      post
+    })
+    emit({
+      type: 'PostDeleted',
+      post
+    })
   }
 })
 
