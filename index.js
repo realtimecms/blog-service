@@ -201,6 +201,7 @@ definition.action({
   properties: {
     ...postFields
   },
+  waitForEvents: true,
   access: (params, { client }) => {
     return client.roles && client.roles.includes('admin')
   },
@@ -236,7 +237,7 @@ definition.action({
       post, data
     })
 
-    return pos
+    return { post, slug: data.slug }
   }
 })
 
@@ -249,6 +250,7 @@ definition.action({
     },
     ...postFields
   },
+  waitForEvents: true,
   access: (params, { client }) => {
     return client.roles && client.roles.includes('admin')
   },
@@ -297,7 +299,7 @@ definition.action({
       post, data
     })
 
-    return post
+    return { post, slug: data.slug }
   }
 })
 
@@ -308,6 +310,7 @@ definition.action({
       type: String
     }
   },
+  waitForEvents: true,
   access: (params, { client }) => {
     return client.roles && client.roles.includes('admin')
   },
