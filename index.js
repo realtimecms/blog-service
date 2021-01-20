@@ -318,7 +318,7 @@ definition.action({
     let current = await Post.get(post)
     await service.triggerService('slugs', {
       type: "ReleaseSlug",
-      group: "post",
+      group: "blog_post",
       path: current.slug,
       to: post
     })
